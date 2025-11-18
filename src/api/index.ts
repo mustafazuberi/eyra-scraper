@@ -24,7 +24,6 @@ router.post('/analyze-and-extract-product-data', async (req, res) => {
       message: 'Product analysis completed successfully',
     });
   } catch (error) {
-    // For now, simple error output
     res.status(500).json({
       message: 'Failed to analyze product',
       error: error instanceof Error ? error.message : 'Unknown error',
