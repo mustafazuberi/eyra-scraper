@@ -5,35 +5,15 @@ import { executablePath } from 'puppeteer';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
+import type {
+  ProductAnalysisResult,
+  ProxyConfig,
+} from '../interfaces/scrape-product.ts.js';
+import type { AnalyzeProductRequestDto } from '../schema/scrape-product.js';
+
 import { env } from '../env.js';
 
 puppeteer.use(StealthPlugin());
-
-export type AnalyzeProductRequestDto = {
-  url: string;
-  countryCode?: string;
-  userAgent?: string;
-};
-
-export type ProductAnalysisResult = {
-  validation: {
-    isDetailPage: boolean;
-    reason: string;
-  };
-  productData: null | {
-    title: string;
-    price_value: string;
-    currency: string;
-    imageUrl: string;
-  };
-};
-
-type ProxyConfig = {
-  username: string;
-  password: string;
-  host: string;
-  port: number;
-};
 
 function generateProxyConfig(countryCode: string = 'US'): ProxyConfig {
   const username = 'mustafazub4';
@@ -43,10 +23,17 @@ function generateProxyConfig(countryCode: string = 'US'): ProxyConfig {
   return { username, password, host, port };
 }
 
-async function launchBrowser({ opts, proxyObj }: { opts: AnalyzeProductRequestDto; proxyObj: ProxyConfig }) {
-  console.log("Launching browser with options: ");  
-  const userAgent = opts.userAgent
-    || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36';
+async function launchBrowser({
+  opts,
+  proxyObj,
+}: {
+  opts: AnalyzeProductRequestDto;
+  proxyObj: ProxyConfig;
+}) {
+  console.log('Launching browser with options: ');
+  const userAgent =
+    opts.userAgent ||
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36';
 
   const launchArgs = [
     '--disable-dev-shm-usage',
@@ -87,15 +74,20 @@ function getAgentQLApiKey(): string {
 }
 
 async function setupPage(params: AnalyzeProductRequestDto) {
-  console.log("Setting up page for URL: ", params.url);
+  console.log('Setting up page for URL: ', params.url);
+
   const { url, countryCode } = params;
   const proxyObj = generateProxyConfig(countryCode || 'US');
-  console.log("Proxy object: ", proxyObj);
+
+  console.log('Proxy object: ', proxyObj);
+
   let browser: Browser | undefined;
   let page: Page | undefined;
+
   try {
     browser = await launchBrowser({ opts: params, proxyObj });
     page = await browser.newPage();
+
     await page.setUserAgent(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
     );
@@ -104,31 +96,35 @@ async function setupPage(params: AnalyzeProductRequestDto) {
       password: proxyObj.password,
     });
     await page.setRequestInterception(true);
+
     page.on('request', (req) => {
       const type = req.resourceType();
-      if (['image', 'media', 'font'].includes(type))
-        req.abort();
+      if (['image', 'media', 'font'].includes(type)) req.abort();
       else req.continue();
     });
+
     try {
       await page.goto(url, { waitUntil: 'networkidle0', timeout: 60000 });
       await page.setViewport({ width: 1600, height: 1200 });
-    }
-    catch (error) {
-      console.error('[product:setupPage] networkidle timed out, retrying with domcontentloaded', error);
+    } catch (error) {
+      console.error(
+        '[product:setupPage] networkidle timed out, retrying with domcontentloaded',
+        error,
+      );
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
     }
+
     const pageHtml = await page.content();
+
     if (!pageHtml) {
       await browser.close();
       return null;
     }
+
     await browser.close();
     return pageHtml;
-  }
-  catch (error) {
-    if (browser)
-      await browser.close();
+  } catch (error) {
+    if (browser) await browser.close();
     console.error('[product:setupPage] Error:', error);
     return null;
   }
@@ -136,7 +132,7 @@ async function setupPage(params: AnalyzeProductRequestDto) {
 
 async function extractProduct(pageHtml: string) {
   try {
-    console.log("Extracting product from page HTML");
+    console.log('Extracting product from page HTML');
     const response = await axios.post(
       'https://api.agentql.com/v1/query-data',
       {
@@ -152,7 +148,7 @@ async function extractProduct(pageHtml: string) {
       },
     );
     const scrapedData = response.data.data;
-    console.log("Scraped data: ", scrapedData);
+    console.log('Scraped data: ', scrapedData);
     return {
       validation: {
         isDetailPage: scrapedData.page_validation.is_detail_page,
@@ -165,8 +161,7 @@ async function extractProduct(pageHtml: string) {
         imageUrl: scrapedData.product.image_url,
       },
     };
-  }
-  catch (error) {
+  } catch (error) {
     console.error('[product:extractProduct] Error:', error);
     return {
       validation: {
@@ -182,7 +177,7 @@ export async function analyzeAndExtractProductData(
   params: AnalyzeProductRequestDto,
 ): Promise<ProductAnalysisResult> {
   try {
-    console.log("Started analyzing and extracting product data");
+    console.log('Started analyzing and extracting product data');
     const page = await setupPage(params);
     if (!page) {
       return {
@@ -193,10 +188,9 @@ export async function analyzeAndExtractProductData(
         productData: null,
       };
     }
-    console.log("Page setup complete, extracting product");
+    console.log('Page setup complete, extracting product');
     return await extractProduct(page);
-  }
-  catch (error) {
+  } catch (error) {
     console.error('[product:analyzeAndExtractProductData] Error:', error);
     return {
       validation: {
