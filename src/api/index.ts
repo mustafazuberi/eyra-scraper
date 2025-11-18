@@ -1,6 +1,6 @@
 import express from 'express';
 
-import AnalyzeProductRequestSchema from '../schema/scrape-product.js';
+import { AnalyzeProductRequestSchema } from '../schema/scrape-product.js';
 import { analyzeAndExtractProductData } from '../services/product-service.js';
 
 const router = express.Router();
