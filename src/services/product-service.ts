@@ -103,17 +103,20 @@ async function setupPage(params: AnalyzeProductRequestDto) {
       else req.continue();
     });
 
-    try {
-      await page.goto(url, { waitUntil: 'networkidle0', timeout: 60000 });
-      await page.setViewport({ width: 1600, height: 1200 });
-    } catch (error) {
-      console.error(
-        '[product:setupPage] networkidle timed out, retrying with domcontentloaded',
-        error,
-      );
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    }
+    // try {
+    //   await page.goto(url, { waitUntil: 'networkidle0', timeout: 60000 });
+    //   await page.setViewport({ width: 1600, height: 1200 });
+    // } catch (error) {
+    //   console.error(
+    //     '[product:setupPage] networkidle timed out, retrying with domcontentloaded',
+    //     error,
+    //   );
+    //   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    // }
 
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.setViewport({ width: 1600, height: 1200 });
+    
     const pageHtml = await page.content();
 
     if (!pageHtml) {
