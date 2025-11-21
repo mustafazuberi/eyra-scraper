@@ -3,7 +3,7 @@ import requests
 from pathlib import Path
 import logging
 from playwright.sync_api import sync_playwright
-from schemas import AnalyzeProductRequest, ProductAnalysisResult, Validation
+from schemas import AnalyzeProductRequest
 import time
 
 logging.basicConfig(
@@ -27,7 +27,7 @@ FIELDS_QUERY = '''
 }
 '''
 
-def analyze_and_extract_product_data(params: AnalyzeProductRequest) -> ProductAnalysisResult:
+def analyze_and_extract_product_data(params: AnalyzeProductRequest) -> dict:
     AGENTQL_API_KEY = os.getenv('AGENTQL_API_KEY')
     if not AGENTQL_API_KEY:
         logger.error("Missing AGENTQL_API_KEY in environment.")
@@ -52,7 +52,30 @@ def analyze_and_extract_product_data(params: AnalyzeProductRequest) -> ProductAn
                 page = browser_context.new_page()
             logger.info(f"Navigating to {params.url} ...")
             page.goto(params.url, wait_until='domcontentloaded', timeout=60000)
-            html = page.content()
+
+            # DOM stability detection
+            QUIET_PERIOD = 2.0
+            MAX_WAIT = 15.0
+            STEP = 0.5
+            last_html = page.content()
+            stable_for = 0.0
+            total_wait = 0.0
+            logger.info(f"Waiting for DOM stability (max {MAX_WAIT}s)...")
+            while total_wait < MAX_WAIT:
+                time.sleep(STEP)
+                current_html = page.content()
+                if current_html == last_html:
+                    stable_for += STEP
+                    if stable_for >= QUIET_PERIOD:
+                        logger.info(f"DOM stable for {QUIET_PERIOD}s after {total_wait+STEP:.1f}s.")
+                        break
+                else:
+                    stable_for = 0.0
+                    last_html = current_html
+                total_wait += STEP
+            else:
+                logger.warning(f"Max wait ({MAX_WAIT}s) reached, proceeding with current DOM.")
+            html = current_html
             browser_context.close()
 
         logger.info("Posting to AgentQL API for extraction...")
@@ -73,23 +96,8 @@ def analyze_and_extract_product_data(params: AnalyzeProductRequest) -> ProductAn
             raise Exception(f"AgentQL error: {r.text}")
         data = r.json().get('data')
         logger.info(f"Raw AgentQL response: {data}")
-        validation = Validation(
-            isDetailPage=data['page_validation']['is_detail_page'],
-            reason=data['page_validation']['reason'],
-        )
-        pd = data['product']
-        product_data = None
-        if pd:
-            product_data = {
-                'title': pd.get('title'),
-                'price_value': pd.get('price'),
-                'currency': pd.get('currency'),
-                'imageUrl': pd.get('image_url'),
-            }
-        logger.info(f"Parsed product_data: {product_data}")
-        result = ProductAnalysisResult(validation=validation, productData=product_data)
-        logger.info(f"Final API response to frontend: {result}")
-        return result
+        # Pass-through: no pydantic wrapping/validation!
+        return data
     except Exception as e:
         logger.exception("Error during analyze_and_extract_product_data execution:")
         raise

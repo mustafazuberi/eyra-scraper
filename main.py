@@ -3,7 +3,7 @@ import traceback
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from schemas import AnalyzeProductRequest, AnalyzeProductResponse
+from schemas import AnalyzeProductRequest
 from services import analyze_and_extract_product_data
 import logging
 
@@ -22,7 +22,7 @@ app.add_middleware(
     allow_methods=['*'], allow_headers=['*']
 )
 
-@app.post("/api/analyze-and-extract-product-data", response_model=AnalyzeProductResponse)
+@app.post("/api/analyze-and-extract-product-data")
 def analyze_and_extract_product_data_endpoint(request: AnalyzeProductRequest):
     try:
         result = analyze_and_extract_product_data(request)
@@ -31,6 +31,7 @@ def analyze_and_extract_product_data_endpoint(request: AnalyzeProductRequest):
             "message": "Product analysis completed successfully"
         }
     except Exception as e:
+        detail = f"Failed to analyze product: {str(e)}"
         tb = traceback.format_exc()
         logger.error(f"HTTP 500 Error: {str(e)}\n{tb}")
-        raise HTTPException(status_code=500, detail=f"Failed to analyze product: {str(e)}\n\nTRACEBACK:\n{tb}")
+        raise HTTPException(status_code=500, detail=f"{detail}\nTRACE:\n{tb}")
