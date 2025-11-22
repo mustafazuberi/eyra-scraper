@@ -9,7 +9,7 @@ import logging
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s %(levelname)s %(message)s',
+    format="%(asctime)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -18,18 +18,19 @@ load_dotenv()
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'], allow_credentials=True,
-    allow_methods=['*'], allow_headers=['*']
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
 
 @app.post("/api/analyze-and-extract-product-data")
 def analyze_and_extract_product_data_endpoint(request: AnalyzeProductRequest):
     try:
         result = analyze_and_extract_product_data(request)
-        return {
-            "data": result,
-            "message": "Product analysis completed successfully"
-        }
+        # Unpack result directly at the root, with message included
+        return {**result, "message": "Product analysis completed successfully"}
     except Exception as e:
         detail = f"Failed to analyze product: {str(e)}"
         tb = traceback.format_exc()
