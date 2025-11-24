@@ -3,10 +3,12 @@ import requests
 from pathlib import Path
 import logging
 from playwright.sync_api import sync_playwright
+from playwright_stealth import stealth_sync
 from schemas import AnalyzeProductRequest
 import time
 import base64
 import sys
+from typing import Dict
 
 try:
     from playwright._impl._errors import Error as PlaywrightError
@@ -23,7 +25,7 @@ FIELDS_QUERY = '''
 {
   page_validation {
     is_detail_page(Determine if this page focuses on a single specific product or item, not a category or list of multiple items.)
-    reason(Explain briefly why this page is or isn’t identified as a single product detail page — mention clues like multiple prices, multiple product titles, or one clearly focused layout.)
+    reason(Explain briefly why this page is or isn't identified as a single product detail page — mention clues like multiple prices, multiple product titles, or one clearly focused layout.)
   }
   product {
     title(The main visible name or heading of the single primary product on the page.)
@@ -33,6 +35,24 @@ FIELDS_QUERY = '''
   }
 }
 '''
+
+def generate_proxy_config(country_code: str = 'US') -> Dict[str, str]:
+    """
+    Generate proxy configuration based on country code.
+    Matches the Express.js implementation.
+    """
+    username = 'mustafazub4'
+    password = f'bFdWY6V7WXjAIi1qXi6N_country-{country_code.upper()}'
+    host = 'core-residential.evomi.com'
+    port = 1000
+    
+    return {
+        'username': username,
+        'password': password,
+        'host': host,
+        'port': port,
+        'server': f'http://{host}:{port}'
+    }
 
 def analyze_and_extract_product_data(params: AnalyzeProductRequest) -> dict:
     AGENTQL_API_KEY = os.getenv('AGENTQL_API_KEY')
@@ -53,11 +73,15 @@ def analyze_and_extract_product_data(params: AnalyzeProductRequest) -> dict:
     screenshot_path = None
 
     try:
+        # Generate proxy config based on country code
+        proxy_config = generate_proxy_config(params.countryCode or 'US')
         logger.info("Launching Playwright browser with frontend browser settings...")
         logger.info(f"Browser config - UserAgent: {params.userAgent}, Locale: {params.locale}, Timezone: {params.timezoneId}, AcceptLanguage: {params.acceptLanguage}, CountryCode: {params.countryCode}")
+        logger.info(f"Proxy config - Server: {proxy_config['server']}, Username: {proxy_config['username']}, Country: {params.countryCode}")
         
+        # Use playwright-stealth for stealth mode
         with sync_playwright() as p:
-            # Configure browser context to match frontend browser
+            # Configure browser context to match frontend browser with proxy
             browser_context = p.chromium.launch_persistent_context(
                 user_data_dir=user_data_dir,
                 channel="chrome",
@@ -66,6 +90,11 @@ def analyze_and_extract_product_data(params: AnalyzeProductRequest) -> dict:
                 user_agent=params.userAgent,  # Set UA for all pages
                 locale=params.locale,  # Set browser locale to match frontend
                 timezone_id=params.timezoneId,  # Set timezone to match frontend
+                proxy={
+                    'server': proxy_config['server'],
+                    'username': proxy_config['username'],
+                    'password': proxy_config['password'],
+                },
                 extra_http_headers={
                     'Accept-Language': params.acceptLanguage,  # Set Accept-Language header
                 },
@@ -76,10 +105,23 @@ def analyze_and_extract_product_data(params: AnalyzeProductRequest) -> dict:
             else:
                 page = browser_context.new_page()
             
+            # Apply stealth mode to the page
+            stealth_sync(page)
+            
             # Set additional headers on the page to match frontend
             page.set_extra_http_headers({
                 'Accept-Language': params.acceptLanguage,
             })
+            
+            # Block images, media, and fonts to speed up loading (like Express version)
+            def handle_route(route):
+                resource_type = route.request.resource_type
+                if resource_type in ['image', 'media', 'font']:
+                    route.abort()
+                else:
+                    route.continue_()
+            
+            page.route('**/*', handle_route)
             
             logger.info(f"Navigating to {url} (wait_until=domcontentloaded) ...")
             page.goto(url, wait_until='domcontentloaded', timeout=60000)
