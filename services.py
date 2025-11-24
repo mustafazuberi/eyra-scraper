@@ -40,29 +40,49 @@ def analyze_and_extract_product_data(params: AnalyzeProductRequest) -> dict:
         logger.error("Missing AGENTQL_API_KEY in environment.")
         raise Exception("Missing AGENTQL_API_KEY in environment.")
 
+    # Validate URL - reject chrome-extension:// and other non-http(s) URLs
+    url = params.url.strip()
+    if not url.startswith(('http://', 'https://')):
+        error_msg = f"Invalid URL scheme. Expected http:// or https://, but received: {url}. Please provide the actual product page URL, not a chrome-extension:// URL."
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+
     user_data_dir = str(Path.cwd() / "playwright-profile")
     screenshots_dir = Path.cwd() / "screens"
     screenshots_dir.mkdir(parents=True, exist_ok=True)
     screenshot_path = None
-    screenshot_b64 = None
 
     try:
-        logger.info("Launching Playwright browser...")
+        logger.info("Launching Playwright browser with frontend browser settings...")
+        logger.info(f"Browser config - UserAgent: {params.userAgent}, Locale: {params.locale}, Timezone: {params.timezoneId}, AcceptLanguage: {params.acceptLanguage}, CountryCode: {params.countryCode}")
+        
         with sync_playwright() as p:
+            # Configure browser context to match frontend browser
             browser_context = p.chromium.launch_persistent_context(
                 user_data_dir=user_data_dir,
                 channel="chrome",
                 headless=True,  # Run browser headless
                 no_viewport=True,
                 user_agent=params.userAgent,  # Set UA for all pages
+                locale=params.locale,  # Set browser locale to match frontend
+                timezone_id=params.timezoneId,  # Set timezone to match frontend
+                extra_http_headers={
+                    'Accept-Language': params.acceptLanguage,  # Set Accept-Language header
+                },
             )
             pages = browser_context.pages
             if pages:
                 page = pages[0]
             else:
                 page = browser_context.new_page()
-            logger.info(f"Navigating to {params.url} (wait_until=domcontentloaded) ...")
-            page.goto(params.url, wait_until='domcontentloaded', timeout=60000)
+            
+            # Set additional headers on the page to match frontend
+            page.set_extra_http_headers({
+                'Accept-Language': params.acceptLanguage,
+            })
+            
+            logger.info(f"Navigating to {url} (wait_until=domcontentloaded) ...")
+            page.goto(url, wait_until='domcontentloaded', timeout=60000)
 
             # --- Most reliable DOM stability logic ---
             QUIET_PERIOD = 4.0   # seconds of no DOM change (longer catches delayed XHR)

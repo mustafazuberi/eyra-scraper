@@ -3,13 +3,11 @@ from typing import Optional, Any
 
 class AnalyzeProductRequest(BaseModel):
     url: str
-    cookies: Optional[Any] = None
     countryCode: str
     userAgent: str
+    acceptLanguage: str
     locale: str
     timezoneId: str
-    geolocation: Optional[Any] = None
-    acceptLanguage: str
 
 class ProductData(BaseModel):
     title: Optional[str] = None
