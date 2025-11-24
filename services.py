@@ -81,29 +81,39 @@ def analyze_and_extract_product_data(params: AnalyzeProductRequest) -> dict:
         
         # Use playwright-stealth for stealth mode
         with sync_playwright() as p:
-            # Configure browser context to match frontend browser with proxy
-            browser_context = p.chromium.launch_persistent_context(
-                user_data_dir=user_data_dir,
+            # Launch browser with proxy and anti-detection args (matching Express.js approach)
+            browser = p.chromium.launch(
                 channel="chrome",
-                headless=True,  # Run browser headless
-                no_viewport=True,
-                user_agent=params.userAgent,  # Set UA for all pages
-                locale=params.locale,  # Set browser locale to match frontend
-                timezone_id=params.timezoneId,  # Set timezone to match frontend
+                headless=True,
+                args=[
+                    '--disable-dev-shm-usage',
+                    '--disable-accelerated-2d-canvas',
+                    '--no-first-run',
+                    '--no-zygote',
+                    '--disable-gpu',
+                    '--no-sandbox',
+                    '--disable-blink-features=AutomationControlled',
+                    '--disable-setuid-sandbox',
+                    '--disable-features=IsolateOrigins,site-per-process',
+                ],
+            )
+            
+            # Create context with proxy and browser settings
+            browser_context = browser.new_context(
+                user_agent=params.userAgent,
+                locale=params.locale,
+                # timezone_id is NOT set - let proxy location determine timezone naturally
                 proxy={
                     'server': proxy_config['server'],
                     'username': proxy_config['username'],
                     'password': proxy_config['password'],
                 },
                 extra_http_headers={
-                    'Accept-Language': params.acceptLanguage,  # Set Accept-Language header
+                    'Accept-Language': params.acceptLanguage,
                 },
             )
-            pages = browser_context.pages
-            if pages:
-                page = pages[0]
-            else:
-                page = browser_context.new_page()
+            
+            page = browser_context.new_page()
             
             # Apply stealth mode to the page
             stealth_sync(page)
@@ -176,6 +186,7 @@ def analyze_and_extract_product_data(params: AnalyzeProductRequest) -> dict:
 
             html = page.content()
             browser_context.close()
+            browser.close()
 
         logger.info("Posting to AgentQL API for extraction...")
         r = requests.post(
