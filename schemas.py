@@ -13,6 +13,14 @@ class AnalyzeProductRequest(BaseModel):
     timezoneId: str
 
 
+class ValidateProductRequest(BaseModel):
+    html: str
+
+
+class ScrapeProductRequest(BaseModel):
+    html: str
+
+
 class ProductData(BaseModel):
     title: Optional[str] = None
     price_value: Optional[str] = None

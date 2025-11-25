@@ -5,11 +5,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 
-from schemas import AnalyzeProductRequest
+from schemas import (
+    AnalyzeProductRequest,
+    ValidateProductRequest,
+    ScrapeProductRequest,
+)
 from services import (
     analyze_and_extract_product_data,
     validate_product_page,
     scrape_product_data,
+    validate_product_page_from_html,
+    scrape_product_data_from_html,
 )
 from utils.response import create_success_response, create_error_response
 from constants import HTTP_STATUS, ERROR_CODES
@@ -81,9 +87,9 @@ def handle_api_error(operation: str, error: Exception):
 
 
 @app.post("/api/product/validate")
-def validate_product_page_endpoint(request: AnalyzeProductRequest):
+def validate_product_page_endpoint(request: ValidateProductRequest):
     try:
-        validation_result = validate_product_page(request)
+        validation_result = validate_product_page_from_html(request)
         response = create_success_response(
             data=validation_result,
             message="Page validation completed successfully",
@@ -95,9 +101,9 @@ def validate_product_page_endpoint(request: AnalyzeProductRequest):
 
 
 @app.post("/api/product/scrape")
-def scrape_product_data_endpoint(request: AnalyzeProductRequest):
+def scrape_product_data_endpoint(request: ScrapeProductRequest):
     try:
-        product_data = scrape_product_data(request)
+        product_data = scrape_product_data_from_html(request)
         response = create_success_response(
             data=product_data,
             message="Product data scraped successfully",

@@ -2,7 +2,7 @@ import logging
 import time
 from pathlib import Path
 from playwright.sync_api import sync_playwright
-from schemas import AnalyzeProductRequest
+from schemas import AnalyzeProductRequest, ValidateProductRequest, ScrapeProductRequest
 
 # Import utilities
 from utils.proxy import generate_proxy_config
@@ -16,6 +16,56 @@ from utils.agentql import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def validate_product_page_from_html(params: ValidateProductRequest) -> dict:
+    html_content = params.html
+    
+    if not html_content or not html_content.strip():
+        raise ValueError("HTML content is required and cannot be empty")
+    
+    logger.info("Validating product page from HTML content")
+    
+    try:
+        agentql_data = query_agentql_api(VALIDATION_QUERY, html_content)
+        
+        validation_result = {
+            "isDetailPage": agentql_data.get("is_detail_page", False),
+            "reason": agentql_data.get("reason", "Unable to determine page type."),
+        }
+        
+        logger.info(f"Validation result: {validation_result}")
+        return validation_result
+        
+    except Exception as e:
+        logger.exception("Error during validate_product_page_from_html execution:")
+        raise
+
+
+def scrape_product_data_from_html(params: ScrapeProductRequest) -> dict:
+    html_content = params.html
+    
+    if not html_content or not html_content.strip():
+        raise ValueError("HTML content is required and cannot be empty")
+    
+    logger.info("Scraping product data from HTML content")
+    
+    try:
+        agentql_data = query_agentql_api(SCRAPE_PRODUCT_QUERY, html_content)
+        
+        product_data = {
+            "title": agentql_data.get("title"),
+            "price_value": agentql_data.get("price"),
+            "currency": agentql_data.get("currency"),
+            "imageUrl": agentql_data.get("image_url"),
+        }
+        
+        logger.info(f"Scraped product data: {product_data}")
+        return product_data
+        
+    except Exception as e:
+        logger.exception("Error during scrape_product_data_from_html execution:")
+        raise
 
 
 def validate_product_page(params: AnalyzeProductRequest) -> dict:
