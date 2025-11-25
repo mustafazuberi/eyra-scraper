@@ -1,11 +1,18 @@
-import os
 import traceback
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-from schemas import AnalyzeProductRequest
-from services import analyze_and_extract_product_data
 import logging
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from dotenv import load_dotenv
+
+from schemas import AnalyzeProductRequest
+from services import (
+    analyze_and_extract_product_data,
+    validate_product_page,
+    scrape_product_data,
+)
+from utils.response import create_success_response, create_error_response
+from constants import HTTP_STATUS, ERROR_CODES
 
 logging.basicConfig(
     level=logging.INFO,
@@ -15,7 +22,13 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-app = FastAPI()
+
+app = FastAPI(
+    title="Product Scraper API",
+    description="API for validating and scraping product data from web pages",
+    version="1.0.0",
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,14 +38,85 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    error_message = str(exc)
+    traceback_str = traceback.format_exc()
+    
+    logger.error(f"Unhandled exception: {error_message}\n{traceback_str}")
+    
+    return create_error_response(
+        code=ERROR_CODES["SERVER_ERROR"],
+        message=f"Internal server error: {error_message}",
+        status_code=HTTP_STATUS["INTERNAL_SERVER_ERROR"],
+    )
+
+
+def handle_api_error(operation: str, error: Exception):
+    error_message = str(error)
+    traceback_str = traceback.format_exc()
+    
+    logger.error(f"HTTP 500 Error during {operation}: {error_message}\n{traceback_str}")
+    
+    # Determine error code based on error type
+    if "Invalid URL" in error_message or "URL" in error_message:
+        error_code = ERROR_CODES["INVALID_URL"]
+        status_code = HTTP_STATUS["BAD_REQUEST"]
+    elif "AGENTQL" in error_message or "AgentQL" in error_message:
+        error_code = ERROR_CODES["AGENTQL_ERROR"]
+        status_code = HTTP_STATUS["INTERNAL_SERVER_ERROR"]
+    elif "proxy" in error_message.lower():
+        error_code = ERROR_CODES["PROXY_ERROR"]
+        status_code = HTTP_STATUS["SERVICE_UNAVAILABLE"]
+    else:
+        error_code = ERROR_CODES["SERVER_ERROR"]
+        status_code = HTTP_STATUS["INTERNAL_SERVER_ERROR"]
+    
+    return create_error_response(
+        code=error_code,
+        message=f"Failed to {operation}: {error_message}",
+        status_code=status_code,
+        details={"traceback": traceback_str} if logger.level <= logging.DEBUG else None,
+    )
+
+
+@app.post("/api/validate-product-page")
+def validate_product_page_endpoint(request: AnalyzeProductRequest):
+    try:
+        validation_result = validate_product_page(request)
+        response = create_success_response(
+            data=validation_result,
+            message="Page validation completed successfully",
+        )
+        return response
+    except Exception as e:
+        response = handle_api_error("validate product page", e)
+        return response
+
+
+@app.post("/api/scrape-product-data")
+def scrape_product_data_endpoint(request: AnalyzeProductRequest):
+    try:
+        product_data = scrape_product_data(request)
+        response = create_success_response(
+            data=product_data,
+            message="Product data scraped successfully",
+        )
+        return response
+    except Exception as e:
+        response = handle_api_error("scrape product data", e)
+        return response
+
+
 @app.post("/api/analyze-and-extract-product-data")
 def analyze_and_extract_product_data_endpoint(request: AnalyzeProductRequest):
     try:
         result = analyze_and_extract_product_data(request)
-        # Unpack result directly at the root, with message included
-        return {**result, "message": "Product analysis completed successfully"}
+        response = create_success_response(
+            data=result,
+            message="Product analysis completed successfully",
+        )
+        return response
     except Exception as e:
-        detail = f"Failed to analyze product: {str(e)}"
-        tb = traceback.format_exc()
-        logger.error(f"HTTP 500 Error: {str(e)}\n{tb}")
-        raise HTTPException(status_code=500, detail=f"{detail}\nTRACE:\n{tb}")
+        response = handle_api_error("analyze product", e)
+        return response
