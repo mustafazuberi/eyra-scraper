@@ -102,7 +102,6 @@ def analyze_and_extract_product_data(params: AnalyzeProductRequest) -> dict:
             browser_context = browser.new_context(
                 user_agent=params.userAgent,
                 locale=params.locale,
-                # timezone_id is NOT set - let proxy location determine timezone naturally
                 proxy={
                     'server': proxy_config['server'],
                     'username': proxy_config['username'],
@@ -136,9 +135,8 @@ def analyze_and_extract_product_data(params: AnalyzeProductRequest) -> dict:
             logger.info(f"Navigating to {url} (wait_until=domcontentloaded) ...")
             page.goto(url, wait_until='domcontentloaded', timeout=60000)
 
-            # --- Most reliable DOM stability logic ---
-            QUIET_PERIOD = 4.0   # seconds of no DOM change (longer catches delayed XHR)
-            MAX_WAIT = 25.0      # max seconds to wait for full page readiness
+            QUIET_PERIOD = 4.0   
+            MAX_WAIT = 25.0      
             STEP = 0.5
             last_html = None
             stable_for = 0.0
