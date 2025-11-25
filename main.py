@@ -80,7 +80,7 @@ def handle_api_error(operation: str, error: Exception):
     )
 
 
-@app.post("/api/validate-product-page")
+@app.post("/api/product/validate")
 def validate_product_page_endpoint(request: AnalyzeProductRequest):
     try:
         validation_result = validate_product_page(request)
@@ -94,7 +94,7 @@ def validate_product_page_endpoint(request: AnalyzeProductRequest):
         return response
 
 
-@app.post("/api/scrape-product-data")
+@app.post("/api/product/scrape")
 def scrape_product_data_endpoint(request: AnalyzeProductRequest):
     try:
         product_data = scrape_product_data(request)
@@ -108,7 +108,7 @@ def scrape_product_data_endpoint(request: AnalyzeProductRequest):
         return response
 
 
-@app.post("/api/analyze-and-extract-product-data")
+@app.post("/api/product/analyze-and-scrape")
 def analyze_and_extract_product_data_endpoint(request: AnalyzeProductRequest):
     try:
         result = analyze_and_extract_product_data(request)
