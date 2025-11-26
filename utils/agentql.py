@@ -1,7 +1,8 @@
 import os
 import requests
 import logging
-from typing import Dict
+from typing import Dict, Any
+from playwright.sync_api import Page
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +38,14 @@ COMBINED_QUERY = """
 """
 
 
-def query_agentql_api(query: str, html_content: str) -> Dict:
+def query_agentql_data(query: str, html_content: str) -> Dict:
     agentql_api_key = os.getenv("AGENTQL_API_KEY")
     
     if not agentql_api_key:
         logger.error("Missing AGENTQL_API_KEY in environment.")
         raise Exception("Missing AGENTQL_API_KEY in environment.")
 
-    logger.info("Posting to AgentQL API for extraction...")
+    logger.info("Posting to AgentQL REST API for data extraction...")
     
     response = requests.post(
         "https://api.agentql.com/v1/query-data",
@@ -58,6 +59,35 @@ def query_agentql_api(query: str, html_content: str) -> Dict:
 
     agentql_data = response.json().get("data") or {}
     
-    logger.info(f"Raw AgentQL response: {agentql_data}")
+    logger.info(f"Raw AgentQL data response: {agentql_data}")
     
     return agentql_data
+
+
+def query_agentql_elements(query: str, page: Page) -> Any:
+    try:
+        import agentql
+    except ImportError:
+        logger.error("AgentQL Python SDK not installed. Install with: pip install agentql")
+        raise Exception("AgentQL Python SDK not installed. Install with: pip install agentql")
+    
+    agentql_api_key = os.getenv("AGENTQL_API_KEY")
+    
+    if not agentql_api_key:
+        logger.error("Missing AGENTQL_API_KEY in environment.")
+        raise Exception("Missing AGENTQL_API_KEY in environment.")
+
+    logger.info("Querying AgentQL for interactive elements using Python SDK...")
+    
+    try:
+        agentql_page = agentql.wrap(page)
+        
+        response = agentql_page.query_elements(query)
+        
+        logger.info("AgentQL elements query completed successfully")
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"AgentQL query_elements error: {str(e)}")
+        raise Exception(f"AgentQL query_elements error: {str(e)}")

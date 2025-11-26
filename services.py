@@ -12,7 +12,8 @@ from utils.agentql import (
     VALIDATION_QUERY,
     SCRAPE_PRODUCT_QUERY,
     COMBINED_QUERY,
-    query_agentql_api,
+    query_agentql_data,
+    query_agentql_elements,
 )
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ def validate_product_page_from_html(params: ValidateProductRequest) -> dict:
     logger.info("Validating product page from HTML content")
     
     try:
-        agentql_data = query_agentql_api(VALIDATION_QUERY, html_content)
+        agentql_data = query_agentql_data(VALIDATION_QUERY, html_content)
         
         validation_result = {
             "isDetailPage": agentql_data.get("is_detail_page", False),
@@ -48,24 +49,24 @@ def scrape_product_data_from_html(params: ScrapeProductRequest) -> dict:
     if not html_content or not html_content.strip():
         raise ValueError("HTML content is required and cannot be empty")
     
-    logger.info("Scraping product data from HTML content")
+    logger.info("Scraping product data from HTML content using query_agentql_elements")
+    
+    playwright_instance = sync_playwright().start()
+    browser = playwright_instance.chromium.launch(headless=True)
+    page = browser.new_page()
+    page.set_content(html_content)
     
     try:
-        agentql_data = query_agentql_api(SCRAPE_PRODUCT_QUERY, html_content)
+        agentql_elements = query_agentql_elements(SCRAPE_PRODUCT_QUERY, page)
         
-        product_data = {
-            "title": agentql_data.get("title"),
-            "price_value": agentql_data.get("price"),
-            "currency": agentql_data.get("currency"),
-            "imageUrl": agentql_data.get("image_url"),
-        }
+        logger.info(f"AgentQL elements response: {agentql_elements}")
+        logger.info(f"AgentQL elements type: {type(agentql_elements)}")
+        logger.info(f"AgentQL elements attributes: {dir(agentql_elements)}")
         
-        logger.info(f"Scraped product data: {product_data}")
-        return product_data
-        
-    except Exception as e:
-        logger.exception("Error during scrape_product_data_from_html execution:")
-        raise
+        return {}
+    finally:
+        browser.close()
+        playwright_instance.stop()
 
 
 def validate_product_page(params: AnalyzeProductRequest) -> dict:
@@ -94,7 +95,7 @@ def validate_product_page(params: AnalyzeProductRequest) -> dict:
         page.goto(url, wait_until="domcontentloaded", timeout=60000)
 
         html_content = wait_for_dom_stability(page)
-        agentql_data = query_agentql_api(VALIDATION_QUERY, html_content)
+        agentql_data = query_agentql_data(VALIDATION_QUERY, html_content)
 
         validation_result = {
             "isDetailPage": agentql_data.get("is_detail_page", False),
@@ -140,7 +141,7 @@ def scrape_product_data(params: AnalyzeProductRequest) -> dict:
         page.goto(url, wait_until="domcontentloaded", timeout=60000)
 
         html_content = wait_for_dom_stability(page)
-        agentql_data = query_agentql_api(SCRAPE_PRODUCT_QUERY, html_content)
+        agentql_data = query_agentql_data(SCRAPE_PRODUCT_QUERY, html_content)
 
         product_data = {
             "title": agentql_data.get("title"),
@@ -204,7 +205,7 @@ def analyze_and_extract_product_data(params: AnalyzeProductRequest) -> dict:
         page.screenshot(path=str(screenshot_path), full_page=True)
         logger.info(f"Screenshot saved at {screenshot_path}")
 
-        agentql_data = query_agentql_api(COMBINED_QUERY, html_content)
+        agentql_data = query_agentql_data(COMBINED_QUERY, html_content)
 
         # Construct response for frontend contract
         validation = {
