@@ -5,3 +5,5 @@ pydantic
 playwright
 playwright-stealth
 httpx
+agentql
+parsel

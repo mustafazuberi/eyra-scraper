@@ -12,7 +12,10 @@ from utils.agentql import (
     VALIDATION_QUERY,
     SCRAPE_PRODUCT_QUERY,
     COMBINED_QUERY,
-    query_agentql_api,
+    extract_selectors,
+    query_agentql_data,
+    query_agentql_elements,
+    compare_selectors_with_agentql,
 )
 
 logger = logging.getLogger(__name__)
@@ -27,7 +30,7 @@ def validate_product_page_from_html(params: ValidateProductRequest) -> dict:
     logger.info("Validating product page from HTML content")
     
     try:
-        agentql_data = query_agentql_api(VALIDATION_QUERY, html_content)
+        agentql_data = query_agentql_data(VALIDATION_QUERY, html_content)
         
         validation_result = {
             "isDetailPage": agentql_data.get("is_detail_page", False),
@@ -48,24 +51,38 @@ def scrape_product_data_from_html(params: ScrapeProductRequest) -> dict:
     if not html_content or not html_content.strip():
         raise ValueError("HTML content is required and cannot be empty")
     
-    logger.info("Scraping product data from HTML content")
-    
     try:
-        agentql_data = query_agentql_api(SCRAPE_PRODUCT_QUERY, html_content)
+        scraped_data = query_agentql_data(SCRAPE_PRODUCT_QUERY, html_content)
         
         product_data = {
-            "title": agentql_data.get("title"),
-            "price_value": agentql_data.get("price"),
-            "currency": agentql_data.get("currency"),
-            "imageUrl": agentql_data.get("image_url"),
+            "title": scraped_data.get("title"),
+            "price": scraped_data.get("price"),
+            "currency": scraped_data.get("currency"),
         }
+
+        selectors = extract_selectors(html_content, product_data.get("title"), product_data.get("price"), product_data.get("currency"))
+
+        logger.info(f"Selectors: {selectors}")
+        logger.info(f"AgentQL elements response: {product_data}")
         
-        logger.info(f"Scraped product data: {product_data}")
+        # Compare XPath selectors with AgentQL values to verify they match
+        if all(selectors.values()):  # Only compare if all selectors were found
+            comparison = compare_selectors_with_agentql(html_content, selectors, product_data)
+            logger.info(f"Selector comparison result: matches={comparison['matches']}, all_match={comparison['all_match']}")
+            
+            if not comparison["all_match"]:
+                logger.warning(
+                    f"XPath selectors don't fully match AgentQL values. "
+                    f"XPath values: {comparison['xpath_values']}, "
+                    f"AgentQL values: {comparison['agentql_values']}, "
+                    f"Matches: {comparison['matches']}"
+                )
+        else:
+            logger.warning("Not all selectors were found, skipping comparison")
+        
         return product_data
-        
-    except Exception as e:
-        logger.exception("Error during scrape_product_data_from_html execution:")
-        raise
+    finally:
+        pass
 
 
 def validate_product_page(params: AnalyzeProductRequest) -> dict:
@@ -94,7 +111,7 @@ def validate_product_page(params: AnalyzeProductRequest) -> dict:
         page.goto(url, wait_until="domcontentloaded", timeout=60000)
 
         html_content = wait_for_dom_stability(page)
-        agentql_data = query_agentql_api(VALIDATION_QUERY, html_content)
+        agentql_data = query_agentql_data(VALIDATION_QUERY, html_content)
 
         validation_result = {
             "isDetailPage": agentql_data.get("is_detail_page", False),
@@ -140,7 +157,7 @@ def scrape_product_data(params: AnalyzeProductRequest) -> dict:
         page.goto(url, wait_until="domcontentloaded", timeout=60000)
 
         html_content = wait_for_dom_stability(page)
-        agentql_data = query_agentql_api(SCRAPE_PRODUCT_QUERY, html_content)
+        agentql_data = query_agentql_data(SCRAPE_PRODUCT_QUERY, html_content)
 
         product_data = {
             "title": agentql_data.get("title"),
@@ -204,7 +221,7 @@ def analyze_and_extract_product_data(params: AnalyzeProductRequest) -> dict:
         page.screenshot(path=str(screenshot_path), full_page=True)
         logger.info(f"Screenshot saved at {screenshot_path}")
 
-        agentql_data = query_agentql_api(COMBINED_QUERY, html_content)
+        agentql_data = query_agentql_data(COMBINED_QUERY, html_content)
 
         # Construct response for frontend contract
         validation = {
