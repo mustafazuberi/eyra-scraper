@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+python-dotenv
+pydantic
+playwright
+playwright-stealth
+httpx
+agentql
+parsel
