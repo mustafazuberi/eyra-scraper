@@ -13,6 +13,7 @@ from utils.agentql import (
     SCRAPE_PRODUCT_QUERY,
     COMBINED_QUERY,
     extract_selectors,
+    extract_values_with_selectors,
     query_agentql_data,
     query_agentql_elements,
     compare_selectors_with_agentql,
@@ -65,6 +66,9 @@ def scrape_product_data_from_html(params: ScrapeProductRequest) -> dict:
         logger.info(f"Selectors: {selectors}")
         logger.info(f"AgentQL elements response: {product_data}")
         
+        # Extract values using XPath selectors
+        xpath_values = extract_values_with_selectors(html_content, selectors)
+        
         # Compare XPath selectors with AgentQL values to verify they match
         if all(selectors.values()):  # Only compare if all selectors were found
             comparison = compare_selectors_with_agentql(html_content, selectors, product_data)
@@ -80,7 +84,23 @@ def scrape_product_data_from_html(params: ScrapeProductRequest) -> dict:
         else:
             logger.warning("Not all selectors were found, skipping comparison")
         
-        return product_data
+        # Return values extracted with selectors along with their selectors
+        result = {
+            "title": {
+                "value": xpath_values.get("title") or product_data.get("title"),
+                "selector": selectors.get("title_xpath"),
+            },
+            "price": {
+                "value": xpath_values.get("price") or product_data.get("price"),
+                "selector": selectors.get("price_xpath"),
+            },
+            "currency": {
+                "value": xpath_values.get("currency") or product_data.get("currency"),
+                "selector": selectors.get("currency_xpath"),
+            },
+        }
+        
+        return result
     finally:
         pass
 

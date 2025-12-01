@@ -141,7 +141,6 @@ def _extract_numeric_value(price_str: Union[str, float]) -> float:
 
 
 def _find_title_selector(selector: Selector, title: str) -> Optional[str]:
-    """Find XPath selector for element containing the product title."""
     if not title:
         return None
     
@@ -195,7 +194,6 @@ def _find_title_selector(selector: Selector, title: str) -> Optional[str]:
 
 
 def _find_price_selector(selector: Selector, price: Union[str, float]) -> Optional[str]:
-    """Find XPath selector for element containing the product price."""
     if price is None:
         return None
     
@@ -244,7 +242,6 @@ def _find_price_selector(selector: Selector, price: Union[str, float]) -> Option
 
 
 def _find_currency_selector(selector: Selector, currency: str, price_xpath: Optional[str] = None) -> Optional[str]:
-    """Find XPath selector for element containing the currency symbol."""
     if not currency:
         return None
     
@@ -329,26 +326,6 @@ def _find_currency_selector(selector: Selector, currency: str, price_xpath: Opti
 
 
 def extract_values_with_selectors(html: str, selectors: Dict[str, Optional[str]]) -> Dict[str, Optional[str]]:
-    """
-    Extract values from HTML using XPath selectors.
-    
-    Args:
-        html: Full HTML content of the rendered page
-        selectors: Dictionary with XPath selectors:
-            {
-                "title_xpath": "...",
-                "price_xpath": "...",
-                "currency_xpath": "..."
-            }
-    
-    Returns:
-        Dictionary with extracted values:
-        {
-            "title": "...",
-            "price": "...",
-            "currency": "..."
-        }
-    """
     result = {
         "title": None,
         "price": None,
@@ -512,30 +489,6 @@ def compare_selectors_with_agentql(
 
 
 def extract_selectors(html: str, title: str, price: Union[float, str], currency: str) -> Dict[str, Optional[str]]:
-    """
-    Extract XPath selectors for product title, price, and currency from HTML.
-    
-    These selectors can be stored in the database and reused for scheduled price checks
-    without calling AgentQL again. Use them with Playwright like:
-    
-        title = page.locator(selectors["title_xpath"]).inner_text()
-        price = page.locator(selectors["price_xpath"]).inner_text()
-        currency = page.locator(selectors["currency_xpath"]).inner_text()
-    
-    Args:
-        html: Full HTML content of the rendered page
-        title: Product title string
-        price: Product price as string or numeric value
-        currency: Currency symbol or code (e.g., '$', 'USD', '€')
-    
-    Returns:
-        Dictionary with XPath selectors:
-        {
-            "title_xpath": "...",
-            "price_xpath": "...",
-            "currency_xpath": "..."
-        }
-    """
     try:
         # Parse HTML with parsel
         selector = Selector(text=html)
